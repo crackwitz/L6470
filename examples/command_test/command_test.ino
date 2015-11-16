@@ -67,13 +67,14 @@ void setup()
   config_reg config = { .raw = driver.getParam(CONFIG_REG) };
   //config.pow_sr = 0b11;
   config.oc_sd = 1;
-  config.f_pwm_div = F_PWM_DIV(7);
-  config.f_pwm_mul = F_PWM_MUL(0.625);
+  //config.f_pwm_div = F_PWM_DIV(7);
+  //config.f_pwm_mul = F_PWM_MUL(0.625);
   //config.pow_sr = 0b00;
   config.en_vscomp = 1;
   driver.setParam(CONFIG_REG, config.raw);
 
-  driver.setParam(ACC_REG, 0x3ff);
+ // driver.setParam(ACC_REG, 0x3ff);
+  driver.setParam(ACC_REG, 0x007);
   driver.setParam(FS_SPD_REG, 0x3ff);
   driver.setParam(MAX_SPEED_REG, 0x3ff);
   driver.setParam(OCD_TH_REG, OCD_TH_AMPS(1.0));
@@ -89,12 +90,16 @@ void setup()
 //  driver.setParam(FN_SLP_DEC_REG, 0x29);
 
   //driver.sendSPI(0b10110000); // soft stop, enable bridges
+
+  driver.sendSPI(0b01010001); // run forward
+  driver.sendValue(20, SPEED_VAL(200 * 8 * 1));
+
 }
 
-//uint32_t speed = 128 * 200;
-uint32_t speed = 50000;
+uint32_t speed = 200 * 8 * 1;
 
 void loop() {
+  return;
   if (Serial.available())
   {
     int value = Serial.parseInt();
@@ -107,9 +112,9 @@ void loop() {
     //driver.setParam(FN_SLP_DEC_REG, value);
     Serial.print("st_slp: "); Serial.println(value);
   }
-  //speed += 1000;
+  //speed += 1;
   driver.sendSPI(0b01010001); // run forward
-  driver.sendValue(20, speed);
+  driver.sendValue(20, SPEED_VAL(speed));
   //Serial.print("Speed: "); Serial.println(speed);
   delay(100);
 }
