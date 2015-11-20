@@ -1,11 +1,28 @@
 #include <SPI.h>
 #include <L6470.h>
 
-L6470 driver(10, 7, 6);
+L6470 driver1(6, 2, 8);
+L6470 driver2(7, 3, 9);
+// avoid 10 (nCC) which is the chip select that SPI.begin() uses
+// flags: 5, 6
+// step clocks: unused
 
-void get_status()
+L6470 &driver = driver2;
+
+bool is_busy()
 {
   status_reg status = { .raw = driver.getParam(STATUS_REG) };
+  return status.busy == 0;
+}
+
+status_reg get_status()
+{
+  return { .raw = driver.getParam(STATUS_REG) };
+}
+
+void print_status()
+{
+  status_reg status = get_status();
 
   Serial.print("STATUS: "); Serial.println(status.raw, 16);
   Serial.print("SCK_MOD:      "); Serial.println(status.sck_mod);
@@ -42,6 +59,11 @@ void get_config()
 
 }
 
+int32_t degrees_to_steps(float angle)
+{
+  return (int32_t)(angle * 568.8888888888889 + 0.5);
+}
+
 void setup()
 {
   // put your setup code here, to run once:
@@ -52,7 +74,7 @@ void setup()
 
   driver.sendSPI(0b10101000); // hard hiz
 
-  get_status();
+  print_status();
   get_config();
 
   step_mode_reg tmp;
@@ -62,7 +84,7 @@ void setup()
   Serial.print("step mode ");
   Serial.println(driver.getParam(STEP_MODE_REG));
 
-  get_status();
+  print_status();
 
   config_reg config = { .raw = driver.getParam(CONFIG_REG) };
   //config.pow_sr = 0b11;
@@ -73,50 +95,77 @@ void setup()
   config.en_vscomp = 1;
   driver.setParam(CONFIG_REG, config.raw);
 
- // driver.setParam(ACC_REG, 0x3ff);
-  driver.setParam(ACC_REG, 0x007);
-  driver.setParam(FS_SPD_REG, 0x3ff);
-  driver.setParam(MAX_SPEED_REG, 0x3ff);
   driver.setParam(OCD_TH_REG, OCD_TH_AMPS(1.0));
+  driver.setParam(MAX_SPEED_REG, MAX_SPEED_VAL(1000)); // 0x3ff, steps/s = (val * 2**-18 / 250ns)
+  driver.setParam(MIN_SPEED_REG, LSPD_OPT | MIN_SPEED_VAL(900)); // 0x3ff, steps/s = (val * 2**-18 / 250ns)
+  driver.setParam(FS_SPD_REG, 0x3ff); // 0x3ff
+  driver.setParam(ACC_REG, 20);
+  driver.setParam(DEC_REG, 20);
+  //driver.setParam(MAX_SPEED_REG, 1);
 
-//  driver.setParam(KVAL_HOLD_REG, 0x29);
-  //driver.setParam(KVAL_RUN_REG, 0x09); // default 0x29
-//  driver.setParam(KVAL_ACC_REG, 0x29);
-//  driver.setParam(KVAL_DEC_REG, 0x29);
-//  
-//  driver.setParam(INT_SPD_REG, 0x0408);
-//  driver.setParam(ST_SLP_REG, 0x19);
-//  driver.setParam(FN_SLP_ACC_REG, 0x29);
-//  driver.setParam(FN_SLP_DEC_REG, 0x29);
+  driver.setParam(KVAL_ACC_REG,  30); // 0x29
+  driver.setParam(KVAL_RUN_REG,  30); // 0x29
+  driver.setParam(KVAL_DEC_REG,  30); // 0x29
+  driver.setParam(KVAL_HOLD_REG, 30); // 0x29
+
+  driver.setParam(INT_SPD_REG, INT_SPD_VAL(800)); // intersect speed 0x0408 = 15 fs/s, max 0x3fff
+  driver.setParam(ST_SLP_REG, 35); // 0x19
+  driver.setParam(FN_SLP_ACC_REG, 255); // 0x29
+  driver.setParam(FN_SLP_DEC_REG, 255); // 0x29
+
 
   //driver.sendSPI(0b10110000); // soft stop, enable bridges
 
-  driver.sendSPI(0b01010001); // run forward
-  driver.sendValue(20, SPEED_VAL(200 * 8 * 1));
+  int32_t dir = degrees_to_steps(90.0);
+  int32_t pos = dir / 2;
+  int32_t maxpos = dir / 2;
+  int32_t minpos = -dir / 2;
 
+  /*
+  maxpos = 1000;
+  minpos = -1000;
+  pos = 0;
+  dir = +100;
+  //*/
+  while (true)
+  {
+    if ((dir > 0 && pos >= maxpos) || (dir < 0 && pos <= minpos))
+      dir = -dir;
+      
+    pos += dir;
+    Serial.println(pos);
+    
+    driver.sendSPI(CMD_GO_TO); // go
+    driver.sendValue(22, pos & 0x3fffff);
+    while (get_status().mot_status != MOT_STOPPED);
+    //delay(500);
+  }
 }
 
 uint32_t speed = 200 * 8 * 1;
 
 void loop() {
-  return;
+  //Serial.println(analogRead(0));
+  //print_status();
+  Serial.println(VAL_SPEED(driver.getParam(SPEED_REG)));
+  
+  //return;
   if (Serial.available())
   {
     int value = Serial.parseInt();
     if (value == 0) return;
     
-    driver.sendSPI(0b10101000); // soft hiz
-    //driver.setParam(KVAL_RUN_REG, value);
+    //driver.sendSPI(0b10101000); // soft hiz
     //driver.setParam(ST_SLP_REG, value);
     //driver.setParam(FN_SLP_ACC_REG, value);
     //driver.setParam(FN_SLP_DEC_REG, value);
-    Serial.print("st_slp: "); Serial.println(value);
+    Serial.print("kval_run: "); Serial.println(value);
   }
   //speed += 1;
-  driver.sendSPI(0b01010001); // run forward
-  driver.sendValue(20, SPEED_VAL(speed));
+  //driver.sendSPI(0b01010001); // run forward
+  //driver.sendValue(20, SPEED_VAL(speed));
   //Serial.print("Speed: "); Serial.println(speed);
-  delay(100);
+  delay(200);
 }
 /*
   return;
