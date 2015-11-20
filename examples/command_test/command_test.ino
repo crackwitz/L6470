@@ -7,22 +7,19 @@ L6470 driver2(7, 3, 9);
 // flags: 5, 6
 // step clocks: unused
 
-L6470 &driver = driver2;
-
-bool is_busy()
-{
-  status_reg status = { .raw = driver.getParam(STATUS_REG) };
-  return status.busy == 0;
-}
-
-status_reg get_status()
+status_reg get_status(L6470 &driver)
 {
   return { .raw = driver.getParam(STATUS_REG) };
 }
 
-void print_status()
+bool is_busy(L6470 &driver)
 {
-  status_reg status = get_status();
+  return get_status(driver).busy == 0;
+}
+
+void print_status(L6470 &driver)
+{
+  status_reg status = get_status(driver);
 
   Serial.print("STATUS: "); Serial.println(status.raw, 16);
   Serial.print("SCK_MOD:      "); Serial.println(status.sck_mod);
@@ -42,7 +39,7 @@ void print_status()
   Serial.print("HIZ:          "); Serial.println(status.hiz ? "yes" : "no");
 }
 
-void get_config()
+void get_config(L6470 &driver)
 {
   config_reg config = { .raw = driver.getParam(CONFIG_REG) };
   
@@ -70,118 +67,126 @@ void setup()
   Serial.begin(9600);
   Serial.println("Hallo!");
 
-  //Serial.println(driver.sendSPI(0x00), 16);
+  driver1.sendSPI(CMD_HARD_HIZ);
+  driver2.sendSPI(CMD_HARD_HIZ);
 
-  driver.sendSPI(0b10101000); // hard hiz
+//  step_mode_reg tmp;
+//  tmp.step_sel = 7; // 2**k = 1..128
+//  driver.setParam(STEP_MODE_REG, tmp.raw );
+  driver1.setParam(STEP_MODE_REG, (step_mode_reg){ .step_sel = 7 }.raw);
+  driver2.setParam(STEP_MODE_REG, (step_mode_reg){ .step_sel = 7 }.raw);
 
-  print_status();
-  get_config();
+  Serial.print("step modes ");
+  Serial.print(driver1.getParam(STEP_MODE_REG));
+  Serial.print(", ");
+  Serial.println(driver2.getParam(STEP_MODE_REG));
 
-  step_mode_reg tmp;
-  tmp.step_sel = 7; // 2**k = 1..128
-  driver.setParam(STEP_MODE_REG, tmp.raw );
+  //print_status();
 
-  Serial.print("step mode ");
-  Serial.println(driver.getParam(STEP_MODE_REG));
+  config_reg config1 = { .raw = driver1.getParam(CONFIG_REG) };
+  config1.oc_sd = 1;
+  config1.en_vscomp = 1;
+  //config1.pow_sr = 0b11;
+  //config1.f_pwm_div = F_PWM_DIV(7);
+  //config1.f_pwm_mul = F_PWM_MUL(0.625);
+  //config1.pow_sr = 0b00;
+  driver1.setParam(CONFIG_REG, config1.raw);
 
-  print_status();
+  config_reg config2 = { .raw = driver2.getParam(CONFIG_REG) };
+  config2.oc_sd = 1;
+  config2.en_vscomp = 1;
+  //config2.pow_sr = 0b11;
+  //config2.f_pwm_div = F_PWM_DIV(7);
+  //config2.f_pwm_mul = F_PWM_MUL(0.625);
+  //config2.pow_sr = 0b00;
+  driver2.setParam(CONFIG_REG, config2.raw);
 
-  config_reg config = { .raw = driver.getParam(CONFIG_REG) };
-  //config.pow_sr = 0b11;
-  config.oc_sd = 1;
-  //config.f_pwm_div = F_PWM_DIV(7);
-  //config.f_pwm_mul = F_PWM_MUL(0.625);
-  //config.pow_sr = 0b00;
-  config.en_vscomp = 1;
-  driver.setParam(CONFIG_REG, config.raw);
+  driver1.setParam(OCD_TH_REG, OCD_TH_AMPS(1.0));
+  driver2.setParam(OCD_TH_REG, OCD_TH_AMPS(1.0));
 
-  driver.setParam(OCD_TH_REG, OCD_TH_AMPS(1.0));
-  driver.setParam(MAX_SPEED_REG, MAX_SPEED_VAL(1000)); // 0x3ff, steps/s = (val * 2**-18 / 250ns)
-  driver.setParam(MIN_SPEED_REG, LSPD_OPT | MIN_SPEED_VAL(900)); // 0x3ff, steps/s = (val * 2**-18 / 250ns)
-  driver.setParam(FS_SPD_REG, 0x3ff); // 0x3ff
-  driver.setParam(ACC_REG, 20);
-  driver.setParam(DEC_REG, 20);
-  //driver.setParam(MAX_SPEED_REG, 1);
+  driver1.setParam(MAX_SPEED_REG, MAX_SPEED_VAL(1000)); // 0x3ff, steps/s = (val * 2**-18 / 250ns)
+  driver2.setParam(MAX_SPEED_REG, MAX_SPEED_VAL(1000)); // 0x3ff, steps/s = (val * 2**-18 / 250ns)
+  
+  driver1.setParam(MIN_SPEED_REG, LSPD_OPT | MIN_SPEED_VAL(900)); // 0x3ff, steps/s = (val * 2**-18 / 250ns)
+  driver2.setParam(MIN_SPEED_REG, LSPD_OPT | MIN_SPEED_VAL(900)); // 0x3ff, steps/s = (val * 2**-18 / 250ns)
 
-  driver.setParam(KVAL_ACC_REG,  30); // 0x29
-  driver.setParam(KVAL_RUN_REG,  30); // 0x29
-  driver.setParam(KVAL_DEC_REG,  30); // 0x29
-  driver.setParam(KVAL_HOLD_REG, 30); // 0x29
+  driver1.setParam(FS_SPD_REG, 0x3ff); // 0x3ff
+  driver2.setParam(FS_SPD_REG, 0x3ff); // 0x3ff
 
-  driver.setParam(INT_SPD_REG, INT_SPD_VAL(800)); // intersect speed 0x0408 = 15 fs/s, max 0x3fff
-  driver.setParam(ST_SLP_REG, 35); // 0x19
-  driver.setParam(FN_SLP_ACC_REG, 255); // 0x29
-  driver.setParam(FN_SLP_DEC_REG, 255); // 0x29
+  driver1.setParam(ACC_REG, 20);
+  driver1.setParam(DEC_REG, 20);
+  driver2.setParam(ACC_REG, 20);
+  driver2.setParam(DEC_REG, 20);
 
+  driver1.setParam(KVAL_ACC_REG,  30); // 0x29
+  driver1.setParam(KVAL_RUN_REG,  30); // 0x29
+  driver1.setParam(KVAL_DEC_REG,  30); // 0x29
+  driver1.setParam(KVAL_HOLD_REG, 30); // 0x29
+  driver2.setParam(KVAL_ACC_REG,  30); // 0x29
+  driver2.setParam(KVAL_RUN_REG,  30); // 0x29
+  driver2.setParam(KVAL_DEC_REG,  30); // 0x29
+  driver2.setParam(KVAL_HOLD_REG, 30); // 0x29
 
-  //driver.sendSPI(0b10110000); // soft stop, enable bridges
+  driver1.setParam(INT_SPD_REG, INT_SPD_VAL(800)); // intersect speed 0x0408 = 15 fs/s, max 0x3fff
+  driver1.setParam(ST_SLP_REG, 35); // 0x19
+  driver1.setParam(FN_SLP_ACC_REG, 255); // 0x29
+  driver1.setParam(FN_SLP_DEC_REG, 255); // 0x29
 
-  int32_t dir = degrees_to_steps(90.0);
-  int32_t pos = dir / 2;
-  int32_t maxpos = dir / 2;
-  int32_t minpos = -dir / 2;
+  driver2.setParam(INT_SPD_REG, INT_SPD_VAL(800)); // intersect speed 0x0408 = 15 fs/s, max 0x3fff
+  driver2.setParam(ST_SLP_REG, 35); // 0x19
+  driver2.setParam(FN_SLP_ACC_REG, 255); // 0x29
+  driver2.setParam(FN_SLP_DEC_REG, 255); // 0x29
 
-  /*
-  maxpos = 1000;
-  minpos = -1000;
-  pos = 0;
-  dir = +100;
-  //*/
+  struct {
+    float x;
+    float y;
+  } waypoints[] = {
+    { 0.0,  0.0},
+    { 0.5,  1.0},
+    { 1.0,  0.0},
+    { 0.5, -1.0},
+    { 0.0,  0.0},
+    {-0.5,  1.0},
+    {-1.0,  0.0},
+    {-0.5, -1.0}
+  };
+  int const pointcount = sizeof(waypoints) / sizeof(*waypoints);
+  float radius = degrees_to_steps(20.0);
+  int index = 0;
   while (true)
   {
-    if ((dir > 0 && pos >= maxpos) || (dir < 0 && pos <= minpos))
-      dir = -dir;
-      
-    pos += dir;
-    Serial.println(pos);
+    int32_t ix = waypoints[index].x * radius;
+    int32_t iy = waypoints[index].y * radius;
+
+    Serial.print("Index ");
+    Serial.print(index);
+    Serial.print(": ");
+    Serial.print(ix);
+    Serial.print(" : ");
+    Serial.println(iy);
     
-    driver.sendSPI(CMD_GO_TO); // go
-    driver.sendValue(22, pos & 0x3fffff);
-    while (get_status().mot_status != MOT_STOPPED);
-    //delay(500);
+    go_to(ix, iy);
+
+    while (get_status(driver1).mot_status != MOT_STOPPED);
+    while (get_status(driver2).mot_status != MOT_STOPPED);
+
+    index = (index + 1) % pointcount;
   }
 }
 
-uint32_t speed = 200 * 8 * 1;
+void go_to(int32_t x, int32_t y)
+{
+  static int32_t cur_x = 0, cur_y = 0;
 
-void loop() {
-  //Serial.println(analogRead(0));
-  //print_status();
-  Serial.println(VAL_SPEED(driver.getParam(SPEED_REG)));
-  
-  //return;
-  if (Serial.available())
-  {
-    int value = Serial.parseInt();
-    if (value == 0) return;
-    
-    //driver.sendSPI(0b10101000); // soft hiz
-    //driver.setParam(ST_SLP_REG, value);
-    //driver.setParam(FN_SLP_ACC_REG, value);
-    //driver.setParam(FN_SLP_DEC_REG, value);
-    Serial.print("kval_run: "); Serial.println(value);
-  }
-  //speed += 1;
-  //driver.sendSPI(0b01010001); // run forward
-  //driver.sendValue(20, SPEED_VAL(speed));
-  //Serial.print("Speed: "); Serial.println(speed);
-  delay(200);
-}
-/*
-  return;
-  // put your main code here, to run repeatedly:
- 
-//  driver.sendSPI(0b01000001); // move forward
-//  driver.sendValue(22, 200 * 128);
-//  delay(2000);
-  
-  driver.sendSPI(0b01010001); // run forward
-  speed += 1000;
-  driver.sendValue(20, speed);
-  Serial.println(speed);
-  delay(1000);
+  // figure out speeds and set
 
-
+  driver1.sendSPI(CMD_GO_TO);
+  driver1.sendValue(22, x & 0x3fffff);
+  driver2.sendSPI(CMD_GO_TO);
+  driver2.sendValue(22, y & 0x3fffff);
 }
 
-*/
+void loop()
+{
+
+}
