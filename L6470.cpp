@@ -111,6 +111,31 @@ uint8_t L6470::cmdNop()
 	return sendSPI(0x00);
 }
 
+void L6470::cmdRun(double steps)
+{
+	int8_t const dir = (steps >= 0);
+
+	if (steps < 0)
+		steps = -steps;
+
+	command(CMD_RUN(dir), SPEED_VAL(steps) & 0xfffff);
+}
+
+void L6470::cmdRun(int val)
+{
+	cmdRun(val);
+}
+
+void L6470::cmdRun(int32_t val)
+{
+	int8_t const dir = (val >= 0);
+
+	if (val < 0)
+		val = -val;
+
+	command(CMD_RUN(dir), val & 0xfffff);
+}
+
 uint32_t L6470::command(cmd_def command, uint32_t arg)
 {
 	sendSPI(command.code);

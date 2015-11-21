@@ -17,6 +17,9 @@ public:
 	uint32_t command(cmd_def command, uint32_t arg=0);
 
 	uint8_t cmdNop();
+	void cmdRun(double steps);
+	void cmdRun(long int val);
+	void cmdRun(int val);
 
 private:
 	int CSpin;
