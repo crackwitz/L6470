@@ -14,6 +14,7 @@ public:
 	uint32_t getParam(reg_def reg);
 	uint32_t setParam(reg_def reg, uint32_t data);
 	uint32_t sendValue(uint8_t bits, uint32_t value);
+	uint32_t command(cmd_def command, uint32_t arg=0);
 
 	uint8_t cmdNop();
 

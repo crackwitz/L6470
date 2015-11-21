@@ -15,7 +15,7 @@ typedef struct reg_def
 #define VAL_SPEED(val) ((val) * 0.014901161193847656)
 
 #define ACC_REG        (reg_def) { 0x05, 12 }
-#define ACC_VAL(steps) ((uint32_t)((steps) * 0.068719476736 + 0.5)
+#define ACC_VAL(steps) ((uint32_t)((steps) * 0.068719476736 + 0.5))
 #define VAL_ACC(val) ((val) * 14.551915228366852)
 
 #define DEC_REG        (reg_def) { 0x06, 12 }
@@ -117,26 +117,31 @@ enum mot_status {
 	MOT_CONST = 0b11,
 };
 
-enum command {
-	CMD_NOP = 0x00,
-	CMD_SET_PARAM = 0x00,
-	CMD_GET_PARAM = 0x20,
-	CMD_RUN = 0x50,
-	CMD_STEP_CLOCK = 0x58,
-	CMD_MOVE = 0x40,
-	CMD_GO_TO = 0x60, // 22 bits
-	CMD_GO_TO_DIR = 0x68,
-	CMD_GO_UNTIL = 0x82,
-	CMD_RELEASE_SW = 0x92,
-	CMD_GO_HOME = 0x70,
-	CMD_GO_MARK = 0x78,
-	CMD_RESET_POS = 0xD8,
-	CMD_RESET_DEVICE = 0xC0,
-	CMD_SOFT_STOP = 0xB0,
-	CMD_HARD_STOP = 0xB8,
-	CMD_SOFT_HIZ = 0xA0,
-	CMD_HARD_HIZ = 0xA8,
-	CMD_GET_STATUS = 0xD0,
-	CMD_RESERVED_CMD1 = 0xEB,
-	CMD_RESERVED_CMD2 = 0xF8
-};
+typedef struct cmd_def
+{
+	uint8_t code;
+	int8_t argbits; // -1 = variable
+} cmd_def;
+
+
+#define CMD_NOP                  (cmd_def) { 0x00,  0 }
+#define CMD_SET_PARAM            (cmd_def) { 0x00, -1 }
+#define CMD_GET_PARAM            (cmd_def) { 0x20, -1 }
+#define CMD_RUN(fwd)             (cmd_def) { 0x50 | !!fwd, 20 }
+#define CMD_STEP_CLOCK(fwd)      (cmd_def) { 0x58 | !!fwd,  0 }
+#define CMD_MOVE(fwd)            (cmd_def) { 0x40 | !!fwd,  0 }
+#define CMD_GO_TO                (cmd_def) { 0x60, 22 }
+#define CMD_GO_TO_DIR(fwd)       (cmd_def) { 0x68 | !!fwd,  22 }
+#define CMD_GO_UNTIL(fwd, act)   (cmd_def) { 0x82 | !!fwd | (!!act << 3),  20 }
+#define CMD_RELEASE_SW(fwd, act) (cmd_def) { 0x92 | !!fwd | (!!act << 3),  0 }
+#define CMD_GO_HOME              (cmd_def) { 0x70,  0 }
+#define CMD_GO_MARK              (cmd_def) { 0x78,  0 }
+#define CMD_RESET_POS            (cmd_def) { 0xD8,  0 }
+#define CMD_RESET_DEVICE         (cmd_def) { 0xC0,  0 }
+#define CMD_SOFT_STOP            (cmd_def) { 0xB0,  0 }
+#define CMD_HARD_STOP            (cmd_def) { 0xB8,  0 }
+#define CMD_SOFT_HIZ             (cmd_def) { 0xA0,  0 }
+#define CMD_HARD_HIZ             (cmd_def) { 0xA8,  0 }
+#define CMD_GET_STATUS           (cmd_def) { 0xD0, 16 }
+//#define CMD_RESERVED_CMD1        (cmd_def) { 0xEB,  0 }
+//#define CMD_RESERVED_CMD2        (cmd_def) { 0xF8,  0 }

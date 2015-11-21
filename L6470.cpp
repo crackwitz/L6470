@@ -111,3 +111,10 @@ uint8_t L6470::cmdNop()
 	return sendSPI(0x00);
 }
 
+uint32_t L6470::command(cmd_def command, uint32_t arg)
+{
+	sendSPI(command.code);
+	arg &= (1ul << command.argbits) - 1;
+	arg = sendValue(command.argbits, arg);
+	return arg;
+}
