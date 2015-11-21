@@ -61,14 +61,21 @@ int32_t degrees_to_steps(float angle)
   return (int32_t)(angle * 568.8888888888889 + 0.5);
 }
 
+float const acceleration = 100.0; // distribute to a_x**2 + a_y**2 = a**2
+// resolution 14.55 st/s^2
+
+float const velocity = 10.0;
+// resolution 15.25 st/s (goto)
+// resolution 0.015 st/s (run)
+
 void setup()
 {
   // put your setup code here, to run once:
   Serial.begin(9600);
   Serial.println("Hallo!");
 
-  driver1.sendSPI(CMD_HARD_HIZ);
-  driver2.sendSPI(CMD_HARD_HIZ);
+  driver1.command(CMD_HARD_HIZ);
+  driver2.command(CMD_HARD_HIZ);
 
 //  step_mode_reg tmp;
 //  tmp.step_sel = 7; // 2**k = 1..128
@@ -141,6 +148,10 @@ void setup()
     float x;
     float y;
   } waypoints[] = {
+    //*
+    {-1.0,  0.5},
+    { 1.0, -0.5},
+    /*/
     { 0.0,  0.0},
     { 0.5,  1.0},
     { 1.0,  0.0},
@@ -149,9 +160,10 @@ void setup()
     {-0.5,  1.0},
     {-1.0,  0.0},
     {-0.5, -1.0}
+    //*/
   };
   int const pointcount = sizeof(waypoints) / sizeof(*waypoints);
-  float radius = degrees_to_steps(20.0);
+  float radius = degrees_to_steps(1.0);
   int index = 0;
   while (true)
   {
@@ -176,14 +188,31 @@ void setup()
 
 void go_to(int32_t x, int32_t y)
 {
-  static int32_t cur_x = 0, cur_y = 0;
+  static int32_t prev_x = 0, prev_y = 0;
 
   // figure out speeds and set
+  int32_t dx = x - prev_x;
+  int32_t dy = y - prev_y;
 
-  driver1.sendSPI(CMD_GO_TO);
-  driver1.sendValue(22, x & 0x3fffff);
-  driver2.sendSPI(CMD_GO_TO);
-  driver2.sendValue(22, y & 0x3fffff);
+  float const angle = atan2(dy, dx);
+  float const ca = abs(cos(angle));
+  float const sa = abs(sin(angle));
+
+  driver1.setParam(ACC_REG, ACC_VAL(ca * acceleration + 0.5));
+  driver2.setParam(ACC_REG, ACC_VAL(sa * acceleration + 0.5));
+
+  driver1.setParam(MAX_SPEED_REG, MAX_SPEED_VAL(ca * velocity + 0.5));
+  driver2.setParam(MAX_SPEED_REG, MAX_SPEED_VAL(sa * velocity + 0.5));
+
+  //Serial.print("vx "); Serial.println(VAL_MAX_SPEED(driver1.getParam(MAX_SPEED_REG)));
+  //Serial.print("vy "); Serial.println(VAL_MAX_SPEED(driver2.getParam(MAX_SPEED_REG)));
+
+  prev_x = x;
+  prev_y = y;
+
+  // go there
+  driver1.command(CMD_GO_TO, x & 0x3fffff);
+  driver2.command(CMD_GO_TO, y & 0x3fffff);
 }
 
 void loop()
