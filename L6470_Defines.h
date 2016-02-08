@@ -17,6 +17,7 @@ typedef struct reg_def
 #define ACC_REG        (reg_def) { 0x05, 12 }
 #define ACC_VAL(steps) ((uint32_t)((steps) * 0.068719476736 + 0.5))
 #define VAL_ACC(val) ((val) * 14.551915228366852)
+// since revision 6: 0xfff should never be used, is reserved
 
 #define DEC_REG        (reg_def) { 0x06, 12 }
 #define DEC_VAL(steps) ACC_VAL(steps)
@@ -37,7 +38,7 @@ typedef struct reg_def
 #define KVAL_DEC_REG   (reg_def) { 0x0c,  8 }
 
 #define INT_SPD_REG    (reg_def) { 0x0d, 14 }
-#define VAL_INT_SPD(stepspertick) (stepspertick * 0.059604644775390625) // 2**-26 for some reason
+#define VAL_INT_SPD(stepspertick) (stepspertick * 0.059604644775390625) // 2**-26, see revision 6 of data sheet
 #define INT_SPD_VAL(stepspersec) ((uint32_t)( stepspersec * 16.777216 + 0.5 )) // full steps
 
 #define ST_SLP_REG     (reg_def) { 0x0e,  8 }

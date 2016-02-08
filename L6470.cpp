@@ -52,9 +52,6 @@ uint32_t L6470::setParam(reg_def reg, uint32_t data)
 	uint32_t mask = 0xffffffff >> (32-reg.bits);
 	if (data > mask) data = mask;
 
-	Serial.print(reg.addr);
-	Serial.println(data);
-
 	uint8_t *ptr = (uint8_t*)&data;
 
 	sendSPI(reg.addr & 0x1f);
