@@ -64,14 +64,65 @@ int32_t degrees_to_steps(float angle)
 float const acceleration = 100.0; // distribute to a_x**2 + a_y**2 = a**2
 // resolution 14.55 st/s^2
 
-float const velocity = 10.0;
+float const velocity = 1000.0;
 // resolution 15.25 st/s (goto)
 // resolution 0.015 st/s (run)
+
+void drivers_setParam(reg_def param, uint32_t data)
+{
+  driver1.setParam(param, data);
+  driver2.setParam(param, data);
+}
+
+void receive_speeds_serial()
+{
+  drivers_setParam(ACC_REG, ACC_VAL(5000));
+  drivers_setParam(DEC_REG, ACC_VAL(5000));
+  drivers_setParam(MAX_SPEED_REG, MAX_SPEED_VAL(8000));
+
+  while (true)
+  {
+    if (Serial.available() <= 0)
+      continue;
+    
+    char sel = Serial.read();
+    bool doset = (Serial.peek() != '\n');
+    float val = 0;
+    if (doset) switch (sel)
+    {
+      case 'a':
+      case 'x':
+      case 'y':
+        val = Serial.parseFloat();
+        break;
+      default:
+        continue;
+    }
+   
+    int dir = (val > 0);
+    Serial.print(sel);
+    Serial.print(" ");
+    Serial.println(val);
+    switch (sel)
+    {
+      case 'a':
+        drivers_setParam(ACC_REG, ACC_VAL(abs(val)));
+        drivers_setParam(DEC_REG, ACC_VAL(abs(val)));
+        break;
+      case 'x':
+        driver1.command(CMD_RUN(dir), SPEED_VAL(abs(val)) & 0xfffff);
+        break;
+      case 'y':
+        driver2.command(CMD_RUN(dir), SPEED_VAL(abs(val)) & 0xfffff);
+        break;
+    }
+  }
+}
 
 void setup()
 {
   // put your setup code here, to run once:
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.println("Hallo!");
 
   driver1.command(CMD_HARD_HIZ);
@@ -108,49 +159,81 @@ void setup()
   //config2.pow_sr = 0b00;
   driver2.setParam(CONFIG_REG, config2.raw);
 
-  driver1.setParam(OCD_TH_REG, OCD_TH_AMPS(1.0));
-  driver2.setParam(OCD_TH_REG, OCD_TH_AMPS(1.0));
-
-  driver1.setParam(MAX_SPEED_REG, MAX_SPEED_VAL(1000)); // 0x3ff, steps/s = (val * 2**-18 / 250ns)
-  driver2.setParam(MAX_SPEED_REG, MAX_SPEED_VAL(1000)); // 0x3ff, steps/s = (val * 2**-18 / 250ns)
+  drivers_setParam(OCD_TH_REG, OCD_TH_AMPS(1.0));
+  //drivers_setParam(MAX_SPEED_REG, MAX_SPEED_VAL(15000)); // 0x3ff, steps/s = (val * 2**-18 / 250ns)
+  drivers_setParam(MAX_SPEED_REG, 0x3ff); // 0x3ff, steps/s = (val * 2**-18 / 250ns)
   
-  driver1.setParam(MIN_SPEED_REG, LSPD_OPT | MIN_SPEED_VAL(900)); // 0x3ff, steps/s = (val * 2**-18 / 250ns)
-  driver2.setParam(MIN_SPEED_REG, LSPD_OPT | MIN_SPEED_VAL(900)); // 0x3ff, steps/s = (val * 2**-18 / 250ns)
+  drivers_setParam(MIN_SPEED_REG, LSPD_OPT | MIN_SPEED_VAL(900)); // 0x3ff, steps/s = (val * 2**-18 / 250ns)
 
-  driver1.setParam(FS_SPD_REG, 0x3ff); // 0x3ff
-  driver2.setParam(FS_SPD_REG, 0x3ff); // 0x3ff
+  drivers_setParam(FS_SPD_REG, 0x3ff); // 0x3ff
 
-  driver1.setParam(ACC_REG, 20);
-  driver1.setParam(DEC_REG, 20);
-  driver2.setParam(ACC_REG, 20);
-  driver2.setParam(DEC_REG, 20);
+  // default acc
+  drivers_setParam(ACC_REG, 20);
+  drivers_setParam(DEC_REG, 20);
+  
+  /*
+  // 12V
+  drivers_setParam(KVAL_ACC_REG,  30); // 0x29
+  drivers_setParam(KVAL_RUN_REG,  30); // 0x29
+  drivers_setParam(KVAL_DEC_REG,  30); // 0x29
+  drivers_setParam(KVAL_HOLD_REG, 30); // 0x29
+  drivers_setParam(INT_SPD_REG, INT_SPD_VAL(800)); // intersect speed 0x0408 = 15 fs/s, max 0x3fff
+  drivers_setParam(ST_SLP_REG, 35); // 0x19
+  drivers_setParam(FN_SLP_ACC_REG, 255); // 0x29
+  drivers_setParam(FN_SLP_DEC_REG, 255); // 0x29
+  /*/
+  // 24V
+  drivers_setParam(KVAL_ACC_REG,  20); // 0x29
+  drivers_setParam(KVAL_RUN_REG,  20); // 0x29
+  drivers_setParam(KVAL_DEC_REG,  20); // 0x29
+  drivers_setParam(KVAL_HOLD_REG, 20); // 0x29
+  // 1060 looks to be it, but value limited to 976.5
+  drivers_setParam(INT_SPD_REG, INT_SPD_VAL(1060)); // intersect speed 0x0408 = 15 fs/s, max 0x3fff
+  drivers_setParam(ST_SLP_REG, 20);
+  drivers_setParam(FN_SLP_ACC_REG, 55);
+  drivers_setParam(FN_SLP_DEC_REG, 55);
+  //*/
 
-  driver1.setParam(KVAL_ACC_REG,  30); // 0x29
-  driver1.setParam(KVAL_RUN_REG,  30); // 0x29
-  driver1.setParam(KVAL_DEC_REG,  30); // 0x29
-  driver1.setParam(KVAL_HOLD_REG, 30); // 0x29
-  driver2.setParam(KVAL_ACC_REG,  30); // 0x29
-  driver2.setParam(KVAL_RUN_REG,  30); // 0x29
-  driver2.setParam(KVAL_DEC_REG,  30); // 0x29
-  driver2.setParam(KVAL_HOLD_REG, 30); // 0x29
+  receive_speeds_serial();
 
-  driver1.setParam(INT_SPD_REG, INT_SPD_VAL(800)); // intersect speed 0x0408 = 15 fs/s, max 0x3fff
-  driver1.setParam(ST_SLP_REG, 35); // 0x19
-  driver1.setParam(FN_SLP_ACC_REG, 255); // 0x29
-  driver1.setParam(FN_SLP_DEC_REG, 255); // 0x29
+  // speed sweep
+  /*
+  driver1.setParam(ACC_REG, ACC_VAL(10));
+  driver1.setParam(MAX_SPEED_REG, MAX_SPEED_VAL(8000));
+  driver1.command(CMD_RUN(1), SPEED_VAL(5) & 0xfffff);
+  return;
+  //*/
 
-  driver2.setParam(INT_SPD_REG, INT_SPD_VAL(800)); // intersect speed 0x0408 = 15 fs/s, max 0x3fff
-  driver2.setParam(ST_SLP_REG, 35); // 0x19
-  driver2.setParam(FN_SLP_ACC_REG, 255); // 0x29
-  driver2.setParam(FN_SLP_DEC_REG, 255); // 0x29
+  /*
+  // single steps
+  long int dx = 1;
+  int pos = 0;
+  long int xmax = 200;
+  long int xmin = -xmax;
+  while (true)
+  {
+    if ((pos >= xmax && dx > 0) || (pos <= xmin && dx < 0))
+      dx = -dx;
 
+    pos += dx;
+    driver1.command(CMD_GO_TO, pos);
+    Serial.println(pos);
+    while (is_busy(driver1));
+    delay(200);
+  }
+  
+  
+  //*/
+  float const goldenratio = (1 + sqrt(5)) / 2.0;
+
+  // waypoints
   struct {
     float x;
     float y;
   } waypoints[] = {
     //*
-    {-1.0,  0.5},
-    { 1.0, -0.5},
+    {-1.0,  1 / goldenratio},
+    { 1.0, -1 / goldenratio},
     /*/
     { 0.0,  0.0},
     { 0.5,  1.0},
@@ -199,7 +282,9 @@ void go_to(int32_t x, int32_t y)
   float const sa = abs(sin(angle));
 
   driver1.setParam(ACC_REG, ACC_VAL(ca * acceleration + 0.5));
+  driver1.setParam(DEC_REG, ACC_VAL(ca * acceleration + 0.5));
   driver2.setParam(ACC_REG, ACC_VAL(sa * acceleration + 0.5));
+  driver2.setParam(DEC_REG, ACC_VAL(sa * acceleration + 0.5));
 
   driver1.setParam(MAX_SPEED_REG, MAX_SPEED_VAL(ca * velocity + 0.5));
   driver2.setParam(MAX_SPEED_REG, MAX_SPEED_VAL(sa * velocity + 0.5));
@@ -217,5 +302,10 @@ void go_to(int32_t x, int32_t y)
 
 void loop()
 {
-
+  return;
+  Serial.print("Speeds: ");
+  Serial.print(VAL_SPEED(driver1.getParam(SPEED_REG)));
+  Serial.print(" ");
+  Serial.println(VAL_SPEED(driver2.getParam(SPEED_REG)));
+  delay(100);
 }
