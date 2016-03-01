@@ -95,6 +95,8 @@ void receive_speeds_serial()
       case 'y':
         val = Serial.parseFloat();
         break;
+      case '!':
+        break;
       default:
         continue;
     }
@@ -115,6 +117,10 @@ void receive_speeds_serial()
       case 'y':
         driver2.command(CMD_RUN(dir), SPEED_VAL(abs(val)) & 0xfffff);
         break;
+      case '!':
+        driver1.command(CMD_SOFT_HIZ);
+        driver2.command(CMD_SOFT_HIZ);
+        break;
     }
   }
 }
@@ -131,8 +137,7 @@ void setup()
 //  step_mode_reg tmp;
 //  tmp.step_sel = 7; // 2**k = 1..128
 //  driver.setParam(STEP_MODE_REG, tmp.raw );
-  driver1.setParam(STEP_MODE_REG, (step_mode_reg){ .step_sel = 7 }.raw);
-  driver2.setParam(STEP_MODE_REG, (step_mode_reg){ .step_sel = 7 }.raw);
+  drivers_setParam(STEP_MODE_REG, (step_mode_reg){ .step_sel = 7 }.raw);
 
   Serial.print("step modes ");
   Serial.print(driver1.getParam(STEP_MODE_REG));
